@@ -1,0 +1,114 @@
+`timescale 1ns/1ps
+
+module router_top_tb;
+
+  // DUT ports
+  reg clk, resetn, packet_valid;
+  reg [7:0] data_in;
+  reg read_enb_0, read_enb_1, read_enb_2;
+
+  wire [7:0] data_out_0, data_out_1, data_out_2;
+  wire vldout_0, vldout_1, vldout_2;
+  wire err, busy;
+
+  // Instantiate DUT
+  router_top DUT (
+    .clk(clk), .resetn(resetn), .packet_valid(packet_valid),
+    .read_enb_0(read_enb_0), .read_enb_1(read_enb_1), .read_enb_2(read_enb_2),
+    .data_in(data_in),
+    .data_out_0(data_out_0), .data_out_1(data_out_1), .data_out_2(data_out_2),
+    .vldout_0(vldout_0), .vldout_1(vldout_1), .vldout_2(vldout_2),
+    .err(err), .busy(busy)
+  );
+
+  // Clock Generation
+  always #5 clk = ~clk;
+
+  // Tasks
+  task reset();
+    begin
+      resetn = 0;
+      {packet_valid, read_enb_0, read_enb_1, read_enb_2, data_in} = 0;
+      #20;
+      resetn = 1;
+    end
+  endtask
+
+  // Send valid packet to given destination (0,1,2)
+  task send_packet(input [1:0] dest, input [3:0] payload_len);
+    integer i;
+    reg [7:0] payload [0:15];
+    reg [7:0] parity;
+    begin
+      // Random payload
+      for (i = 0; i < payload_len; i++) payload[i] = $random;
+
+      // Compute parity
+      parity = {6'b0, dest};
+      for (i = 0; i < payload_len; i++) parity = parity ^ payload[i];
+
+      @(posedge clk);
+      packet_valid = 1;
+      data_in = {6'b0, dest};  // Header
+      @(posedge clk);
+
+      for (i = 0; i < payload_len; i++) begin
+        data_in = payload[i];
+        @(posedge clk);
+      end
+
+      data_in = parity;
+      packet_valid = 0;
+      @(posedge clk);
+    end
+  endtask
+
+  // Read outputs from destination
+  task read_outputs();
+    begin
+      repeat (5) begin
+        read_enb_0 = 1; read_enb_1 = 1; read_enb_2 = 1;
+        @(posedge clk);
+      end
+      read_enb_0 = 0; read_enb_1 = 0; read_enb_2 = 0;
+    end
+  endtask
+
+  // Stimulus Sequence
+  initial begin
+    $dumpfile("router_top_tb.vcd");
+    $dumpvars(0, router_top_tb);
+
+    clk = 0;
+    reset();
+
+    // Cover dest = 0
+    send_packet(2'b00, 5);
+    read_outputs();
+
+    // Cover dest = 1
+    send_packet(2'b01, 5);
+    read_outputs();
+
+    // Cover dest = 2
+    send_packet(2'b10, 5);
+    read_outputs();
+
+    // Edge case: zero-length payload
+    send_packet(2'b00, 0);
+    read_outputs();
+
+    // Invalid parity case
+    packet_valid = 1;
+    data_in = 8'h00; @(posedge clk); // header
+    data_in = 8'hAA; @(posedge clk); // payload
+    data_in = 8'h00; packet_valid = 0; @(posedge clk); // wrong parity
+    read_outputs();
+
+    // Allow FSM time to reset
+    repeat (10) @(posedge clk);
+
+    $finish;
+  end
+
+endmodule

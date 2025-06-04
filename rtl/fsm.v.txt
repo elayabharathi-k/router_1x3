@@ -1,0 +1,116 @@
+module router_fsm(
+    input clk, resetn, packet_valid,
+    input [1:0] data_in,
+    input parity_done, soft_reset_0, soft_reset_1, soft_reset_2,
+    input fifo_full, low_packet_valid,
+    input fifo_empty_0, fifo_empty_1, fifo_empty_2,
+    output reg busy, detect_add, ld_state, lfd_state, full_state, laf_state,
+    output reg write_enb_reg, rst_int_reg
+);
+
+    parameter decode_address     = 4'b0001,
+              wait_till_empty   = 4'b0010,
+              load_first_data   = 4'b0011,
+              load_data         = 4'b0100,
+              load_parity       = 4'b0101,
+              fifo_full_state   = 4'b0110,
+              load_after_full   = 4'b0111,
+              check_parity_error= 4'b1000;
+
+    reg [3:0] present_state, next_state;
+    reg [1:0] temp;
+
+    // Store destination address
+    always @(posedge clk) begin
+        if (!resetn)
+            temp <= 2'b00;
+        else if (detect_add)
+            temp <= data_in;
+    end
+
+    // Present state logic
+    always @(posedge clk) begin
+        if (!resetn)
+            present_state <= decode_address;
+        else if ((soft_reset_0 && temp == 2'b00) ||
+                 (soft_reset_1 && temp == 2'b01) ||
+                 (soft_reset_2 && temp == 2'b10))
+            present_state <= decode_address;
+        else
+            present_state <= next_state;
+    end
+
+    // Next state logic
+    always @(*) begin
+        case (present_state)
+            decode_address:
+                next_state = packet_valid ? wait_till_empty : decode_address;
+
+            wait_till_empty:
+                case (temp)
+                    2'b00: next_state = fifo_empty_0 ? load_first_data : wait_till_empty;
+                    2'b01: next_state = fifo_empty_1 ? load_first_data : wait_till_empty;
+                    2'b10: next_state = fifo_empty_2 ? load_first_data : wait_till_empty;
+                    default: next_state = decode_address;
+                endcase
+
+            load_first_data:
+                next_state = fifo_full ? fifo_full_state : load_data;
+
+            load_data:
+                next_state = fifo_full ? fifo_full_state :
+                             (!packet_valid) ? load_parity : load_data;
+
+            fifo_full_state:
+                next_state = !fifo_full ? load_after_full : fifo_full_state;
+
+            load_after_full:
+                next_state = !packet_valid ? load_parity : load_data;
+
+            load_parity:
+                next_state = check_parity_error;
+
+            check_parity_error:
+                next_state = decode_address;
+
+            default:
+                next_state = decode_address;
+        endcase
+    end
+
+    // Output logic
+    always @(*) begin
+        {busy, detect_add, ld_state, lfd_state, full_state, laf_state, write_enb_reg, rst_int_reg} = 8'b0;
+
+        case (present_state)
+            decode_address: begin
+                detect_add = 1'b1;
+                busy       = 1'b1;
+            end
+            wait_till_empty: busy = 1'b1;
+            load_first_data: begin
+                busy       = 1'b1;
+                lfd_state  = 1'b1;
+                ld_state   = 1'b1;
+            end
+            load_data: begin
+                busy         = 1'b1;
+                write_enb_reg= 1'b1;
+                ld_state     = 1'b1;
+            end
+            fifo_full_state: begin
+                busy       = 1'b1;
+                full_state = 1'b1;
+            end
+            load_after_full: begin
+                busy         = 1'b1;
+                laf_state    = 1'b1;
+                write_enb_reg= 1'b1;
+                ld_state     = 1'b1;
+            end
+            load_parity: busy = 1'b1;
+            check_parity_error: rst_int_reg = 1'b1;
+        endcase
+    end
+
+endmodule

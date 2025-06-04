@@ -1,0 +1,85 @@
+module router_sync(
+    input resetn, clk, detect_add, write_enb_reg,
+    input read_enb_0, read_enb_1, read_enb_2,
+    input empty_0, empty_1, empty_2,
+    input full_0, full_1, full_2,
+    input [1:0] data_in,
+    output wire vld_out_0, vld_out_1, vld_out_2,
+    output reg [2:0] write_enb,
+    output reg fifo_full,
+    output reg soft_reset_0, soft_reset_1, soft_reset_2
+);
+
+    reg [1:0] temp;
+    reg [4:0] count0, count1, count2;
+
+    // Address capture
+    always @(posedge clk) begin
+        if (!resetn)
+            temp <= 2'b00;
+        else if (detect_add)
+            temp <= data_in;
+    end
+
+    // FIFO Full Logic (Combinational)
+    always @(*) begin
+        case (temp)
+            2'b00: fifo_full = full_0;
+            2'b01: fifo_full = full_1;
+            2'b10: fifo_full = full_2;
+            default: fifo_full = 1'b0;
+        endcase
+    end
+
+    // Write Enable Logic
+    always @(posedge clk) begin
+        if (write_enb_reg) begin
+            case (temp)
+                2'b00: write_enb <= 3'b001;
+                2'b01: write_enb <= 3'b010;
+                2'b10: write_enb <= 3'b100;
+                default: write_enb <= 3'b000;
+            endcase
+        end else begin
+            write_enb <= 3'b000;
+        end
+    end
+
+    // Valid Output Assignments
+    assign vld_out_0 = ~empty_0;
+    assign vld_out_1 = ~empty_1;
+    assign vld_out_2 = ~empty_2;
+
+    // Soft Reset Logic
+    always @(posedge clk) begin
+        if (!resetn) begin
+            count0 <= 5'd0;
+            count1 <= 5'd0;
+            count2 <= 5'd0;
+            {soft_reset_0, soft_reset_1, soft_reset_2} <= 3'b000;
+        end else begin
+            // FIFO 0
+            if (read_enb_0 && empty_0)
+                count0 <= count0 + 1;
+            else if (!empty_0)
+                count0 <= 5'd0;
+
+            // FIFO 1
+            if (read_enb_1 && empty_1)
+                count1 <= count1 + 1;
+            else if (!empty_1)
+                count1 <= 5'd0;
+
+            // FIFO 2
+            if (read_enb_2 && empty_2)
+                count2 <= count2 + 1;
+            else if (!empty_2)
+                count2 <= 5'd0;
+
+            soft_reset_0 <= (count0 == 5'd30);
+            soft_reset_1 <= (count1 == 5'd30);
+            soft_reset_2 <= (count2 == 5'd30);
+        end
+    end
+
+endmodule

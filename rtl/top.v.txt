@@ -1,0 +1,75 @@
+module router_top(
+    input clk, resetn, packet_valid,
+    input read_enb_0, read_enb_1, read_enb_2,
+    input [7:0] data_in,
+    output vldout_0, vldout_1, vldout_2,
+    output err, busy,
+    output [7:0] data_out_0, data_out_1, data_out_2
+);
+
+    wire [2:0] w_enb;
+    wire [2:0] soft_reset;
+    wire [2:0] empty;
+    wire [2:0] full;
+    wire [2:0] read_enb = {read_enb_2, read_enb_1, read_enb_0};
+
+    wire lfd_state;
+    wire [7:0] dout;
+    wire [7:0] data_out_temp[2:0];
+    wire detect_add, ld_state, laf_state, full_state, rst_int_reg;
+    wire parity_done, low_packet_valid;
+
+    // FIFO instantiation using generate loop
+    genvar i;
+    generate
+        for (i = 0; i < 3; i = i + 1) begin : fifo_block
+            router_fifo fifo_inst (
+                .clk(clk),
+                .resetn(resetn),
+                .soft_reset(soft_reset[i]),
+                .lfd_state(lfd_state),
+                .write_enb(w_enb[i]),
+                .data_in(dout),
+                .read_enb(read_enb[i]),
+                .full(full[i]),
+                .empty(empty[i]),
+                .dataout(data_out_temp[i])
+            );
+        end
+    endgenerate
+
+    // Output assignment
+    assign data_out_0 = data_out_temp[0];
+    assign data_out_1 = data_out_temp[1];
+    assign data_out_2 = data_out_temp[2];
+
+    router_reg reg_inst (
+        .clk(clk), .resetn(resetn), .packet_valid(packet_valid), .data_in(data_in),
+        .dout(dout), .fifo_full(fifo_full), .detect_add(detect_add),
+        .ld_state(ld_state), .laf_state(laf_state), .full_state(full_state),
+        .lfd_state(lfd_state), .rst_int_reg(rst_int_reg), .err(err),
+        .parity_done(parity_done), .low_packet_valid(low_packet_valid)
+    );
+
+    router_fsm fsm_inst (
+        .clk(clk), .resetn(resetn), .packet_valid(packet_valid), .data_in(data_in[1:0]),
+        .parity_done(parity_done), .soft_reset_0(soft_reset[0]),
+        .soft_reset_1(soft_reset[1]), .soft_reset_2(soft_reset[2]),
+        .fifo_full(fifo_full), .low_packet_valid(low_packet_valid),
+        .fifo_empty_0(empty[0]), .fifo_empty_1(empty[1]), .fifo_empty_2(empty[2]),
+        .busy(busy), .detect_add(detect_add), .ld_state(ld_state), .lfd_state(lfd_state),
+        .full_state(full_state), .laf_state(laf_state), .write_enb_reg(write_enb_reg),
+        .rst_int_reg(rst_int_reg)
+    );
+
+    router_sync sync_inst (
+        .resetn(resetn), .clk(clk), .detect_add(detect_add), .write_enb_reg(write_enb_reg),
+        .read_enb_0(read_enb_0), .read_enb_1(read_enb_1), .read_enb_2(read_enb_2),
+        .empty_0(empty[0]), .empty_1(empty[1]), .empty_2(empty[2]),
+        .full_0(full[0]), .full_1(full[1]), .full_2(full[2]),
+        .data_in(data_in[1:0]), .vld_out_0(vldout_0), .vld_out_1(vldout_1),
+        .vld_out_2(vldout_2), .write_enb(w_enb), .fifo_full(fifo_full),
+        .soft_reset_0(soft_reset[0]), .soft_reset_1(soft_reset[1]), .soft_reset_2(soft_reset[2])
+    );
+
+endmodule

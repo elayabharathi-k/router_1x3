@@ -1,0 +1,2 @@
+This project presents the design, implementation, and verification of a 1x3 packet router using Verilog HDL. The router accepts serialized input packets and routes them to one of three output channels based on header information. The design includes robust flow control using FIFO buffers and state machines to ensure proper data delivery. It is targeted for digital communication systems requiring efficient on-chip network routing.
+

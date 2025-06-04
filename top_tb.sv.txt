@@ -1,0 +1,32 @@
+`include "router_if.sv"
+
+module top_tb;
+  bit clk;
+  bit resetn;
+
+  router_if rif(clk);
+  top dut (
+    .clk(clk),
+    .resetn(rif.resetn),
+    .data_in(rif.data_in),
+    .pkt_valid(rif.pkt_valid),
+    .read_enb_0(rif.read_enb_0),
+    .read_enb_1(rif.read_enb_1),
+    .read_enb_2(rif.read_enb_2),
+    .vld_out_0(rif.vld_out_0),
+    .vld_out_1(rif.vld_out_1),
+    .vld_out_2(rif.vld_out_2),
+    .data_out_0(rif.data_out_0),
+    .data_out_1(rif.data_out_1),
+    .data_out_2(rif.data_out_2),
+    .err(rif.err)
+  );
+
+  initial clk = 0;
+  always #5 clk = ~clk;
+
+  initial begin
+    uvm_config_db#(virtual router_if)::set(null, "*", "vif", rif);
+    run_test("router_test");
+  end
+endmodule

@@ -1,0 +1,14 @@
+class router_xtn extends uvm_sequence_item;
+  rand bit [1:0] addr;
+  rand int length;
+  rand bit [7:0] payload[$];
+
+  constraint length_c { length inside {[1:10]}; }
+  constraint payload_size_c { payload.size() == length; }
+
+  `uvm_object_utils(router_xtn)
+
+  function new(string name = "router_xtn");
+    super.new(name);
+  endfunction
+endclass

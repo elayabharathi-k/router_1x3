@@ -1,0 +1,9 @@
+interface router_if(input logic clk);
+  logic [7:0] data_in;
+  logic pkt_valid;
+  logic resetn;
+  logic read_enb_0, read_enb_1, read_enb_2;
+  logic vld_out_0, vld_out_1, vld_out_2;
+  logic [7:0] data_out_0, data_out_1, data_out_2;
+  logic err;
+endinterface

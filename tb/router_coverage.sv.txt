@@ -1,1 +1,23 @@
+class router_coverage extends uvm_subscriber #(router_xtn);
+  `uvm_component_utils(router_coverage)
 
+  covergroup router_cg;
+    coverpoint addr { bins dest[] = {[0:2]}; }
+    coverpoint length { bins len[] = {[1:10]}; }
+    cross addr, length;
+  endgroup
+
+  function new(string name, uvm_component parent);
+    super.new(name, parent);
+    router_cg = new();
+  endfunction
+
+  function void write(router_xtn t);
+    this.addr = t.addr;
+    this.length = t.payload.size();
+    router_cg.sample();
+  endfunction
+
+  bit [1:0] addr;
+  int length;
+endclass

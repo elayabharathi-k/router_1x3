@@ -1,0 +1,14 @@
+class router_scoreboard extends uvm_component;
+  `uvm_component_utils(router_scoreboard)
+
+  uvm_analysis_imp #(router_xtn, router_scoreboard) imp;
+
+  function new(string name, uvm_component parent);
+    super.new(name, parent);
+    imp = new("imp", this);
+  endfunction
+
+  function void write(router_xtn t);
+    `uvm_info("SCOREBOARD", $sformatf("Received packet for addr: %0d, length: %0d", t.addr, t.payload.size()), UVM_LOW)
+  endfunction
+endclass

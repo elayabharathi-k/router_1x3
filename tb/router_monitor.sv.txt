@@ -1,0 +1,35 @@
+class router_monitor extends uvm_monitor;
+  `uvm_component_utils(router_monitor)
+
+  virtual router_if vif;
+  uvm_analysis_port #(router_xtn) ap;
+
+  function new(string name, uvm_component parent);
+    super.new(name, parent);
+    ap = new("ap", this);
+  endfunction
+
+  function void build_phase(uvm_phase phase);
+    if (!uvm_config_db#(virtual router_if)::get(this, "", "vif", vif))
+      `uvm_fatal("NOVIF", "Virtual interface not set")
+  endfunction
+
+  task run_phase(uvm_phase phase);
+    router_xtn xtn;
+    forever begin
+      @(posedge vif.clk);
+      if (vif.pkt_valid) begin
+        xtn = router_xtn::type_id::create("xtn");
+        xtn.addr = vif.data_in[1:0];
+        xtn.payload = {};
+
+        @(posedge vif.clk);
+        while (vif.pkt_valid) begin
+          xtn.payload.push_back(vif.data_in);
+          @(posedge vif.clk);
+        end
+        ap.write(xtn);
+      end
+    end
+  endtask
+endclass
